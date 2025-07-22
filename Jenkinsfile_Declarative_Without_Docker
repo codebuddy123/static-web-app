@@ -1,0 +1,43 @@
+pipeline {
+
+    agent any
+
+    environment {
+        NGINX_IP = "18.60.225.116"
+    }
+
+    stages {
+        stage("Get the code from SCM") {
+            steps {
+                git branch: 'main', credentialsId: 'ce4402e7-050c-46c0-b476-9b9e33e8db44', url: 'https://github.com/codebuddy123/static-web-app.git'
+            }
+        }
+
+        stage("Remove the Existing files") {
+            steps {
+                sshagent(['nginxcredentials']) {
+                    sh "ssh -o StrictHostKeyChecking=no ec2-user@${NGINX_IP} 'sudo rm -rf /usr/share/nginx/html/*'"
+                }
+            }
+        }
+
+        stage("Copy the new files in the Nginx root directory") {
+           steps {
+                sshagent(['nginxcredentials']) {
+                    sh """
+                scp -o StrictHostKeyChecking=no -r ${WORKSPACE}/* ec2-user@${NGINX_IP}:/tmp/
+                ssh -o StrictHostKeyChecking=no ec2-user@${NGINX_IP} 'sudo mv /tmp/* /usr/share/nginx/html/'
+                       """
+        }
+    }
+}
+
+        stage("Restart the Nginx Server") {
+            steps {
+                sshagent(['nginxcredentials']) {
+                    sh "ssh -o StrictHostKeyChecking=no ec2-user@${NGINX_IP} 'sudo systemctl restart nginx'"
+                }
+            }
+        }
+    }
+}
